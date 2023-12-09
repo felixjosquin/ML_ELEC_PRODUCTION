@@ -1,2 +1,3 @@
 ml_elec_env
-data/eCO2mix_*.xls
+data/CO2mix_*.csv
+plot
