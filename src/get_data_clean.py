@@ -26,8 +26,6 @@ for csv_file in csv_file_paths:
             "Solaire",
             "Hydraulique",
             "Bioénergies",
-            "Consommation",
-            "Prévision J-1",
         ],
     ]
     df_data.rename(columns={"Heures": "Start_time"}, inplace=True)
@@ -51,5 +49,7 @@ for csv_file in csv_file_paths:
         header=not os.path.exists(data_clean_path),
     )
 
-    # df_data.loc.plot(kind="line", x="Start_time", y=["Nucléaire"])
+    # df_data.loc[
+    #     (df_data["Start_time"] > "2021-08-02") & (df_data["Start_time"] < "2021-08-10")
+    # ].plot(kind="line", x="Start_time", y=["Consommation"])
     # plt.savefig("plot/myimage.png", dpi=1200)
