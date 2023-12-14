@@ -29,17 +29,10 @@ for csv_file in csv_file_paths:
         ],
     ]
     df_data.rename(columns={"Heures": "Start_time"}, inplace=True)
-    df_data.insert(
-        df_data.columns.get_loc("Start_time") + 1,
-        "End_time",
-        df.loc[df.index % 2 == 1, "Heures"].to_list(),
-    )
     df_data["Start_time"] = pd.to_datetime(
         df_data["Date"] + " " + df_data["Start_time"], format="%d/%m/%Y %H:%M"
     )
-    df_data["End_time"] = pd.to_datetime(
-        df_data["Date"] + " " + df_data["End_time"], format="%d/%m/%Y %H:%M"
-    )
+    df_data["End_time"] = df_data["Start_time"] + pd.Timedelta(minutes=30)
     df_data = df_data.drop(columns=["Date"])
 
     df_data.to_csv(
