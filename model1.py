@@ -7,11 +7,12 @@ import torch
 import torch.nn as nn
 
 ###### HYPERPARAMETER ######
-nb_epoch = 500
-lr = 0.0001
-hidden_layer = 120
-nb_days_cnn = 6
-nb_days_by_batch = 73  # 1 5 3 15 73 219 365 1095 (values possible)
+nb_epoch = 1000
+lr = 0.00005
+hidden_layer = 128
+nb_days_cnn = 1
+nb_days_by_batch = 96
+batch_normalization = False
 #############################
 
 NB_RECORD_FOR_DAY = 48
@@ -45,7 +46,7 @@ df[keywords] /= df_max[keywords]
 
 traindata = np.array(
     [
-        df.loc[df["End_time"] <= "2021-12-31"]
+        df.loc[df["End_time"] <= "2021-05-30 00:00:00"]
         .drop(
             columns=[
                 "Start_time",
@@ -55,6 +56,13 @@ traindata = np.array(
         .values
     ]
 )
+# shape 1 * (880j * 48 record_for_a_day) * 8 channels
+
+traindata = (
+    traindata[:, : -(traindata.shape[1] % (nb_days_by_batch * NB_RECORD_FOR_DAY)), :]
+    if traindata.shape[1] % (nb_days_by_batch * NB_RECORD_FOR_DAY) != 0
+    else traindata
+)
 traindata = np.reshape(
     traindata,
     (
@@ -63,30 +71,46 @@ traindata = np.reshape(
         NB_CHANNELS,
     ),
 )
-
 trainx = torch.tensor(traindata[:, :-NB_RECORD_FOR_DAY, :], dtype=torch.float32)
 trainy = torch.tensor(
     traindata[:, nb_days_cnn * NB_RECORD_FOR_DAY :, :], dtype=torch.float32
 )
-nb_day_batch_train = trainy.shape[1] // NB_RECORD_FOR_DAY
 trainds = torch.utils.data.TensorDataset(trainx, trainy)
 trainloader = torch.utils.data.DataLoader(trainds, batch_size=1, shuffle=False)
 
+testdata = np.array(
+    [
+        (
+            df.loc[df["Start_time"] >= "2021-05-31 00:00:00"]
+            .drop(
+                columns=[
+                    "Start_time",
+                    "End_time",
+                ]
+            )
+            .values
+        )
+    ]
+)
+# shape 1 * (366j * 48 record_for_a_day) * 8 channels
 testdata = (
-    df.loc[df["Start_time"] >= "2022-01-01"]
-    .drop(
-        columns=[
-            "Start_time",
-            "End_time",
-        ]
-    )
-    .values
+    testdata[:, : -(testdata.shape[1] % (nb_days_by_batch * NB_RECORD_FOR_DAY)), :]
+    if testdata.shape[1] % (nb_days_by_batch * NB_RECORD_FOR_DAY) != 0
+    else testdata
 )
-testx = torch.tensor(np.array([testdata[:-NB_RECORD_FOR_DAY, :]]), dtype=torch.float32)
+testdata = np.reshape(
+    testdata,
+    (
+        testdata.shape[1] // (nb_days_by_batch * NB_RECORD_FOR_DAY),
+        nb_days_by_batch * NB_RECORD_FOR_DAY,
+        NB_CHANNELS,
+    ),
+)
+
+testx = torch.tensor(testdata[:, :-NB_RECORD_FOR_DAY, :], dtype=torch.float32)
 testy = torch.tensor(
-    np.array([testdata[nb_days_cnn * NB_RECORD_FOR_DAY :, :]]), dtype=torch.float32
+    testdata[:, nb_days_cnn * NB_RECORD_FOR_DAY :, :], dtype=torch.float32
 )
-nb_day_batch_test = testy.shape[1] // NB_RECORD_FOR_DAY
 testds = torch.utils.data.TensorDataset(testx, testy)
 testloader = torch.utils.data.DataLoader(testds, batch_size=1, shuffle=False)
 
@@ -101,20 +125,28 @@ class Mod(nn.Module):
             kernel_size=self.kern,
             stride=NB_RECORD_FOR_DAY,
         )
+        self.tanH = nn.Tanh()
         self.sigmoid = nn.Sigmoid()
-        self.reLU = nn.ReLU()
         self.mlp = nn.Linear(nhid, NB_RECORD_FOR_DAY * NB_CHANNELS)
+        self.normalization = nn.BatchNorm1d(
+            num_features=NB_CHANNELS * NB_RECORD_FOR_DAY
+        )
 
     def forward(self, x):
-        # x = N * L * NB_CHANNELS
+        # x = 1 * L * NB_CHANNELS
+        if batch_normalization:
+            x = x.view(-1, NB_CHANNELS * NB_RECORD_FOR_DAY)
+            x = self.normalization(x)
+            x = x.view(1, -1, NB_CHANNELS)
+
         x = torch.transpose(x, 1, 2)
         x = self.cnn(x)
-        y = self.sigmoid(x)
+        y = self.tanH(x)
         B, C_out, L_out = y.shape
         # y = B * C_out * L_out
         yy = y.transpose(1, 2)
         y = self.mlp(yy.view(B * L_out, C_out))
-        return y.view(-1, NB_RECORD_FOR_DAY * NB_CHANNELS)
+        return self.sigmoid(y.view(-1, NB_RECORD_FOR_DAY * NB_CHANNELS))
 
 
 def test(mod):
@@ -153,10 +185,11 @@ def train(mod):
         )
         train_loss_data.append(totloss)
         test_loss_data.append(testloss)
-    abs = list(range(nb_epoch))
-    plt.plot(abs, train_loss_data)
-    plt.plot(abs, test_loss_data)
-    plt.savefig("./plot/myimage.png", dpi=1000)
+    abs = list(range(nb_epoch - 100))
+    plt.plot(abs, train_loss_data[100:])
+    plt.plot(abs, test_loss_data[100:])
+    plt.savefig("./plot/myimage1.png", dpi=1000)
+    plt.clf()
     print("fin")
 
 
@@ -170,28 +203,30 @@ train(mod)
 torch.save(mod.state_dict(), "./data/model.pt")
 
 mod.load_state_dict(torch.load("data/model.pt"))
-input, goldy = next(iter(trainloader))
-haty = (
-    np.transpose(mod(input).view(-1, NB_CHANNELS).detach().numpy())
-    * df_max.values[:, np.newaxis]
-)
-goldy = (
-    np.transpose(goldy.view(-1, NB_CHANNELS).detach().numpy())
-    * df_max.values[:, np.newaxis]
-)
-nb_days_show = 15
+input, goldy = next(iter(testloader))
+haty = np.transpose(mod(input).view(-1, NB_CHANNELS).detach().numpy())
+goldy = np.transpose(goldy.view(-1, NB_CHANNELS).detach().numpy())
+# haty = haty * df_max.values[:, np.newaxis]
+# goldy = goldy * df_max.values[:, np.newaxis]
+nb_days_show = 13
 abscisse = np.linspace(0, nb_days_show, nb_days_show * NB_RECORD_FOR_DAY)
 for key in keywords:
     indice = df_max.index.get_loc(key)
     plt.plot(
         abscisse,
-        haty[indice, -nb_days_show * NB_RECORD_FOR_DAY :],
+        haty[
+            indice,
+            : nb_days_show * NB_RECORD_FOR_DAY,
+        ],
         label="prédiction",
         color="red",
     )
     plt.plot(
         abscisse,
-        goldy[indice, -nb_days_show * NB_RECORD_FOR_DAY :],
+        goldy[
+            indice,
+            : nb_days_show * NB_RECORD_FOR_DAY,
+        ],
         label="vrai valeur",
         color="green",
     )
