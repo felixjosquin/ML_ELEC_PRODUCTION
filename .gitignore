@@ -1,5 +1,4 @@
 ml_elec_env
-data/CO2mix_*.csv
 plot/*
 envML
 data/model.pt
