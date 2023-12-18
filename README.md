@@ -9,7 +9,9 @@ Le but fondamental de cette initiative est de concevoir un modèle d'intelligenc
 Nous avons choisi d'utiliser les données du mix énergétique fournies par RTE pour l'entraînement de nos modèles. Ces données, accessibles au public, sont d'une fiabilité élevée. </br>
 Les données téléchargées couvrent la période du 01/01/2019 au 31/05/2022 et portent sur la production en mégawatts des énergies primaires: Fioul, Charbon, Gaz, Nucléaire, Éolien, Solaire, Hydraulique et Bioénergies. Les données sont actualisées toutes les 30 minutes, ce qui permet de développer un modèle d'une grande précision. </br>
 
-![CO2_mix](images/energy_mix.png "Energie mix moyen entre 2019 et 2022")
+<div align=center>
+    <img src="images/energy_mix.png" width=95% alt="Energie mix moyen entre 2019 et 2022" >
+</div>
 
 ### Approche
 
