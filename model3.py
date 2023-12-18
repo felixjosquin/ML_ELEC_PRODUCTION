@@ -8,13 +8,15 @@ import torch.nn as nn
 
 ###### HYPERPARAMETER ######
 nb_epoch = 500
-lr = 0.0001
-nb_days_by_batch = 30
-nb_days_look_before = 3
+lr = 0.00005
+nb_days_by_batch = 50
+nb_days_look_before = 4
 
 hidden_layer_cnn = 96
-hidden_layer_rnn = 126
-n_record_rnn = 6  # 1 2 3 4 6 8 12 16 24 48
+hidden_layer_cnn_no_periodic = 96
+
+hidden_layer_rnn = 48
+n_record_rnn = 3  # 1 2 3 4 6 8 12 16 24 48
 #############################
 
 NB_RECORD_FOR_DAY = 48
@@ -127,48 +129,55 @@ class Mod(nn.Module):
     def __init__(self):
         super().__init__()
         self.kern = nb_days_look_before * NB_RECORD_FOR_DAY
-        self.cnn = nn.Conv1d(
+        self.cnn_periodic = nn.Conv1d(
             in_channels=NB_CHANNELS,
             out_channels=hidden_layer_cnn,
             kernel_size=self.kern,
             stride=NB_RECORD_FOR_DAY,
         )
+        self.mlp_cnn_periodic = nn.Linear(
+            hidden_layer_cnn, NB_RECORD_FOR_DAY * len(indice_periodic)
+        )
+
         self.rnn = torch.nn.RNN(
             input_size=n_record_rnn * NB_CHANNELS,
             hidden_size=hidden_layer_rnn,
         )
-        self.tanH = nn.Tanh()
-        self.sigmoid = nn.Sigmoid()
-        self.mlp_cnn = nn.Linear(
-            hidden_layer_cnn, NB_RECORD_FOR_DAY * len(indice_periodic)
-        )
         self.mlp_rnn = nn.Linear(
-            NB_RECORD_FOR_DAY * hidden_layer_rnn // n_record_rnn,
+            hidden_layer_cnn_no_periodic,
             NB_RECORD_FOR_DAY * len(indice_no_periodic),
         )
+        self.cnn_no_periodic = nn.Conv1d(
+            in_channels=hidden_layer_rnn,
+            out_channels=hidden_layer_cnn_no_periodic,
+            kernel_size=self.kern // n_record_rnn,
+            stride=NB_RECORD_FOR_DAY // n_record_rnn,
+        )
+
+        self.tanH = nn.Tanh()
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         # Periodic energy type
         x_periodic = torch.transpose(x, 1, 2)
         # x = 1  * 3 * L
-        x_periodic = self.cnn(x_periodic)
+        x_periodic = self.cnn_periodic(x_periodic)
         y_periodic = self.tanH(x_periodic)
         Batch_size, C_out, L_out = y_periodic.shape
         # y_periodic = Batch_size * C_out * L_out
         y_periodic = y_periodic.transpose(1, 2)
-        y_periodic = self.mlp_cnn(y_periodic.view(Batch_size * L_out, C_out))
+        y_periodic = self.mlp_cnn_periodic(y_periodic.view(Batch_size * L_out, C_out))
         out_periodic = self.sigmoid(
             y_periodic.view(-1, NB_RECORD_FOR_DAY * len(indice_periodic))
         )
 
         # Not periodic energy type
-        x_no_periodic = x[:, (nb_days_look_before - 1) * NB_RECORD_FOR_DAY :, :]
-        x_no_periodic = x_no_periodic.view(-1, n_record_rnn * NB_CHANNELS)
+        x_no_periodic = x.view(-1, n_record_rnn * NB_CHANNELS)
         y_no_periodic, _ = self.rnn(x_no_periodic)
-        yy_no_periodic = y_no_periodic.view(
-            -1, NB_RECORD_FOR_DAY * hidden_layer_rnn // n_record_rnn
-        )
-        out_no_periodic = self.sigmoid(self.mlp_rnn(yy_no_periodic))
+        y_no_periodic = y_no_periodic.transpose(0, 1)
+        out_cnn = self.cnn_no_periodic(y_no_periodic)
+        out_cnn = out_cnn.transpose(0, 1)
+        out_no_periodic = self.sigmoid(self.mlp_rnn(out_cnn))
 
         out = torch.cat((out_no_periodic, out_periodic), dim=1)
         return out
@@ -211,9 +220,9 @@ def train(mod):
         train_loss_data.append(totloss)
         test_loss_data.append(testloss)
     abs = list(range(nb_epoch - 10))
-    plt.plot(abs, train_loss_data[10:])
-    plt.plot(abs, test_loss_data[10:])
-    plt.savefig("./plot/model2/loss.png", dpi=1000)
+    plt.plot(abs, train_loss_data[20:])
+    plt.plot(abs, test_loss_data[20:])
+    plt.savefig("./plot/model3/loss.png", dpi=1000)
     plt.clf()
     print("fin")
 
@@ -224,16 +233,16 @@ print(
     sum(p.numel() for p in mod.parameters() if p.requires_grad),
     file=sys.stderr,
 )
-train(mod)
-torch.save(mod.state_dict(), "./data/model2.pt")
+# train(mod)
+# torch.save(mod.state_dict(), "./data/model3.pt")
 
-mod.load_state_dict(torch.load("data/model2.pt"))
+mod.load_state_dict(torch.load("data/model3.pt"))
 input, goldy = next(iter(testloader))
 haty = np.transpose(mod(input).view(-1, NB_CHANNELS).detach().numpy())
 goldy = np.transpose(goldy.view(-1, NB_CHANNELS).detach().numpy())
 # haty = haty * df_max.values[:, np.newaxis]
 # goldy = goldy * df_max.values[:, np.newaxis]
-nb_days_show = 13
+nb_days_show = 30
 abscisse = np.linspace(0, nb_days_show, nb_days_show * NB_RECORD_FOR_DAY)
 for key in keywords:
     indice = df_max.index.get_loc(key)
@@ -255,6 +264,6 @@ for key in keywords:
         label="vrai valeur",
         color="green",
     )
-    plt.savefig(f"./plot/model2/prev_{key}.png", dpi=1000)
+    plt.savefig(f"./plot/model3/prev_{key}.png", dpi=1000)
     plt.legend(loc="upper left")
     plt.clf()

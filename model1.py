@@ -10,8 +10,8 @@ import torch.nn as nn
 nb_epoch = 1000
 lr = 0.00005
 hidden_layer = 128
-nb_days_cnn = 1
-nb_days_by_batch = 96
+nb_days_cnn = 4
+nb_days_by_batch = 80
 batch_normalization = False
 #############################
 
@@ -188,7 +188,7 @@ def train(mod):
     abs = list(range(nb_epoch - 100))
     plt.plot(abs, train_loss_data[100:])
     plt.plot(abs, test_loss_data[100:])
-    plt.savefig("./plot/myimage1.png", dpi=1000)
+    plt.savefig("./plot/model1/loss.png", dpi=1000)
     plt.clf()
     print("fin")
 
@@ -199,16 +199,16 @@ print(
     sum(p.numel() for p in mod.parameters() if p.requires_grad),
     file=sys.stderr,
 )
-train(mod)
-torch.save(mod.state_dict(), "./data/model.pt")
+# train(mod)
+# torch.save(mod.state_dict(), "./data/model1.pt")
 
-mod.load_state_dict(torch.load("data/model.pt"))
+mod.load_state_dict(torch.load("data/model1.pt"))
 input, goldy = next(iter(testloader))
 haty = np.transpose(mod(input).view(-1, NB_CHANNELS).detach().numpy())
 goldy = np.transpose(goldy.view(-1, NB_CHANNELS).detach().numpy())
 # haty = haty * df_max.values[:, np.newaxis]
 # goldy = goldy * df_max.values[:, np.newaxis]
-nb_days_show = 13
+nb_days_show = 30
 abscisse = np.linspace(0, nb_days_show, nb_days_show * NB_RECORD_FOR_DAY)
 for key in keywords:
     indice = df_max.index.get_loc(key)
@@ -230,6 +230,6 @@ for key in keywords:
         label="vrai valeur",
         color="green",
     )
-    plt.savefig(f"./plot/prev_{key}.png", dpi=1000)
+    plt.savefig(f"./plot/model1/prev_{key}.png", dpi=1000)
     plt.legend(loc="upper left")
     plt.clf()
