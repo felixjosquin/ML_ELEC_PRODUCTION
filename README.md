@@ -54,14 +54,18 @@ L'input du modèle est constituée du mix énergétique des `nb_days_cnn` jours 
 La normalisation des inputs n'est pas essentielle, et elle entraîne une perte d'information sur les jours précédents qui présentent des similitudes avec le jour à prédire. J'ai tracé les courbes de perte d'entraînement et de test en fonction des époques (`nb_epoch=300, lr=0.0001, hidden_layer=48, nb_days_cnn=6, nb_days_by_batch=46`)
 
 <div style="display: flex; justify-content: space-between;">
-    <figure>
-        <img src="images/loss_avec_normalisation.png" alt="Image 1">
-        <figcaption>Loss function of train (bleu) et test (orange) with normalization</figcaption>
-    </figure>
-    <figure>
-        <img src="images/loss_whitout_normalisation.png" alt="Image 2" >
-        <figcaption>Loss function of train (bleu) et test (orange) without normalization</figcaption>
-    </figure>
+    <div align=center>
+        <img src="images/loss_avec_normalisation.png" width=95% alt="Image 1">
+        <p align=center >
+            Loss function of train (bleu) et test (orange) with normalization
+        </p>
+    </div>
+    <div align=center>
+        <img src="images/loss_whitout_normalisation.png" width=95% alt="Image 2" >
+        <p align=center >
+      Loss function of train (bleu) et test (orange) without normalization
+        </p>
+    </div>
 </div>
 
 #### Analyse n°2
