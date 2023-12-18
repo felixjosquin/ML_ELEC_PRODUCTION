@@ -1,4 +1,3 @@
 ml_elec_env
-plot/*
 envML
-data/model.pt
+data/model*.pt
